@@ -624,6 +624,11 @@ function MonteCarloLab() {
   const [probability, setProbability] = useState(0.62)
   const [trials, setTrials] = useState(500)
   const [results, setResults] = useState<number[]>([])
+  const scenarioButtons = [
+    { label: 'Prueba médica', probability: 0.32, trials: 500 },
+    { label: 'Falla de sistema', probability: 0.1, trials: 1000 },
+    { label: 'Venta digital', probability: 0.2, trials: 750 },
+  ]
 
   function runSimulation() {
     const samples = Array.from({ length: trials }, () => (Math.random() < probability ? 1 : 0))
@@ -634,6 +639,21 @@ function MonteCarloLab() {
   const experimental = results.length === 0 ? 0 : successes / results.length
   const error = Math.abs(probability - experimental)
   const preview = results.slice(0, 90)
+  const convergence = results.reduce<number[]>((points, value, index) => {
+    const runningSuccesses = (points[index - 1] ?? 0) * index + value
+    points.push(runningSuccesses / (index + 1))
+    return points
+  }, [])
+  const sampleEvery = Math.max(1, Math.ceil(convergence.length / 46))
+  const sampledConvergence = convergence.filter((_, index) => index % sampleEvery === 0)
+  const convergencePoints = sampledConvergence
+    .map((value, index) => {
+      const x = sampledConvergence.length <= 1 ? 0 : (index / (sampledConvergence.length - 1)) * 100
+      const y = 100 - clampProbability(value) * 100
+      return `${x},${y}`
+    })
+    .join(' ')
+  const theoreticalY = 100 - probability * 100
 
   return (
     <section className="simulation-shell">
@@ -647,6 +667,11 @@ function MonteCarloLab() {
 
       <div className="simulation-grid">
         <div className="sim-controls">
+          <div className="monte-explain">
+            <strong>¿Por qué Monte Carlo?</strong>
+            <p>El nombre viene de Monte Carlo, famoso por sus casinos. La técnica usa azar repetido para aproximar resultados difíciles de predecir directamente.</p>
+          </div>
+
           <label>
             Probabilidad del evento
             <input
@@ -673,6 +698,22 @@ function MonteCarloLab() {
             <strong>{trials.toLocaleString('es-CO')}</strong>
           </label>
 
+          <div className="scenario-buttons" aria-label="Escenarios de simulación">
+            {scenarioButtons.map((scenario) => (
+              <button
+                key={scenario.label}
+                onClick={() => {
+                  setProbability(scenario.probability)
+                  setTrials(scenario.trials)
+                  setResults([])
+                }}
+                type="button"
+              >
+                {scenario.label}
+              </button>
+            ))}
+          </div>
+
           <button className="primary-action" onClick={runSimulation} type="button">
             Ejecutar simulación
           </button>
@@ -690,6 +731,16 @@ function MonteCarloLab() {
             {preview.map((value, index) => (
               <span className={value === 1 ? 'success' : 'failure'} key={`${index}-${value}`} title={value === 1 ? 'ocurrió' : 'no ocurrió'} />
             ))}
+          </div>
+          <div className="convergence-panel">
+            <div>
+              <strong>Curva de convergencia</strong>
+              <span>Entre más intentos, más tiende a estabilizarse.</span>
+            </div>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Curva de convergencia Monte Carlo">
+              <line x1="0" x2="100" y1={theoreticalY} y2={theoreticalY} className="target-line" />
+              {convergencePoints && <polyline points={convergencePoints} />}
+            </svg>
           </div>
           <div className="answer-strip">
             <span>Eventos exitosos: {successes.toLocaleString('es-CO')} de {results.length.toLocaleString('es-CO')}</span>
