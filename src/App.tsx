@@ -249,10 +249,10 @@ function detectKind(text: string): SolverKind {
   if (lower.includes('spam') || lower.includes('oferta') || lower.includes('zona norte') || lower.includes('zona sur') || lower.includes('técnico') || lower.includes('tecnico')) return 'bayes'
   if (lower.includes('bayes') || lower.includes('provenga') || lower.includes('haya sido') || lower.includes('pertenezca')) return 'bayes'
   if (lower.includes('defecto') && lower.includes('desarrollado') && lower.includes('si se')) return 'bayes'
-  if (lower.includes('al menos una') || lower.includes(' al menos uno') || lower.includes(' o ') || lower.includes('simultáneamente a ambas categorías')) return 'adicion'
+  if (lower.includes('al menos una') || lower.includes(' al menos uno') || lower.includes(' o ') || lower.includes(' o\n') || lower.includes('o matemáticas') || lower.includes('o matematicas') || lower.includes('simultáneamente a ambas categorías')) return 'adicion'
   if (lower.includes('dado que') || lower.includes('si se sabe') || lower.includes('sabiendo')) return 'condicional'
   if (lower.includes('probabilidad total') || lower.includes('global') || lower.includes('general')) return 'total'
-  if (lower.includes('ambas') || lower.includes('ambos') || lower.includes('independiente')) return 'multiplicacion'
+  if (lower.includes('ambas') || lower.includes('ambos') || lower.includes('independiente') || lower.includes('simultáneamente') || lower.includes('simultaneamente') || lower.includes(' y ')) return 'multiplicacion'
   return 'adicion'
 }
 
@@ -292,6 +292,11 @@ function inferAdditionValues(text: string, values: number[]) {
     return [first / total, second / total, both / total]
   }
 
+  if (lower.includes('grupo') && lower.includes('estudian')) {
+    const [total = 1, first = 0, second = 0, both = 0] = counts
+    return [first / total, second / total, both / total]
+  }
+
   if (lower.includes('usuarios') || lower.includes('biblioteca')) {
     const [total = 1, first = 0, second = 0] = counts
     const intersection = lower.includes('ningún') || lower.includes('ningun') ? 0 : counts[3] ?? 0
@@ -301,9 +306,37 @@ function inferAdditionValues(text: string, values: number[]) {
   return values
 }
 
+function inferMultiplicationValues(text: string, values: number[]) {
+  if (values.length > 0) return values
+
+  const lower = text.toLowerCase()
+  const counts = extractCountNumbers(text)
+
+  if (lower.includes('moneda') && lower.includes('dado')) {
+    const diceFaces = counts.find((value) => value >= 4) ?? 6
+    return [1 / 2, 1 / diceFaces]
+  }
+
+  if (lower.includes('preguntas') && lower.includes('opciones')) {
+    const optionMatch = lower.match(/(\d+)\s+opciones/)
+    const options = optionMatch ? Number.parseInt(optionMatch[1], 10) : Math.max(...counts, 4)
+    return [1 / options, 1 / options]
+  }
+
+  if (lower.includes('urna') && lower.includes('rojas') && lower.includes('reemplazo')) {
+    const red = counts[0] ?? 0
+    const blue = counts[1] ?? 0
+    const total = red + blue || 1
+    return [red / total, red / total]
+  }
+
+  return values
+}
+
 function getSolverValues(kind: SolverKind, text: string) {
   const values = extractNumbers(text)
   if (kind === 'adicion') return inferAdditionValues(text, values)
+  if (kind === 'multiplicacion') return inferMultiplicationValues(text, values)
   return values
 }
 
